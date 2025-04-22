@@ -115,6 +115,7 @@ class PBIX_Extractor:
     def extract_model(self):
         try:
             os.makedirs(self.output_path, exist_ok=True)
+            log_file = os.path.join(self.output_path, "extraction_log.txt")
 
             base_path = get_base_path()
 
@@ -132,7 +133,10 @@ class PBIX_Extractor:
                     )
                     return
 
-                cmd = f'{powershell} {pbi_tools_path} "{self.file_path}" -extractFolder "{self.output_path}"'
+                file_path = os.path.normpath(self.file_path)
+                output_path = os.path.normpath(self.output_path)
+
+                cmd = f'''"{powershell}" "{pbi_tools_path}" extract "{file_path}" -extractFolder "{output_path}"'''
 
                 result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
 
@@ -148,6 +152,9 @@ class PBIX_Extractor:
                         "- DiagramLayout.json (model diagram layout)",
                     )
                 else:
+                    with open(log_file, "a") as f:
+                        f.write(str(result))
+
                     messagebox.showerror("Error", result.stderr)
             else:  # Linux/Mac
                 mock_file = os.path.join(self.output_path, "model.json")
