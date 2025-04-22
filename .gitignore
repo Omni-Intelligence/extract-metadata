@@ -37,7 +37,6 @@ ENV/
 # Project specific
 pbi_output/
 *.pbix
-*.json
 
 # Operating System
 .DS_Store
