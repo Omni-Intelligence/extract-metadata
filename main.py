@@ -118,6 +118,29 @@ class PBIX_Extractor:
             os.makedirs(self.output_path, exist_ok=True)
             log_file = os.path.join(self.output_path, "extraction_log.txt")
 
+            # Check for Windows path length limitation
+            if platform.system() == "Windows":
+                file_path = os.path.normpath(self.file_path)
+                output_path = os.path.normpath(self.output_path)
+
+                if len(file_path) >= 260:
+                    messagebox.showerror(
+                        "Path Too Long",
+                        "Input file path exceeds Windows 260 character limit:\n"
+                        f"Length: {len(file_path)}\n\n"
+                        "Please use a shorter file path or move the file closer to the root directory.",
+                    )
+                    return
+
+                if len(output_path) >= 260:
+                    messagebox.showerror(
+                        "Path Too Long",
+                        "Output path exceeds Windows 260 character limit:\n"
+                        f"Length: {len(output_path)}\n\n"
+                        "Please select an output location with a shorter path.",
+                    )
+                    return
+
             base_path = get_base_path()
             bin_path = os.path.join(base_path, "bin")
 
