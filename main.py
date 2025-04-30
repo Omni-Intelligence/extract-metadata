@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tkinter as tk
@@ -118,25 +119,109 @@ class PBIX_Extractor:
             log_file = os.path.join(self.output_path, "extraction_log.txt")
 
             base_path = get_base_path()
+            bin_path = os.path.join(base_path, "bin")
 
             # Check operating system
             if platform.system() == "Windows":
                 powershell = (
                     r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
                 )
-                pbi_tools_path = os.path.join(base_path, "bin", "pbi-tools.exe")
 
-                if not os.path.exists(pbi_tools_path):
-                    messagebox.showerror(
-                        "Error",
-                        "pbi-tools.exe not found. Please ensure the application is properly installed.",
+                pbi_tools_win_path = os.path.join(bin_path, "win", "pbi-tools.exe")
+                pbi_tools_core_path = os.path.join(
+                    bin_path, "core", "pbi-tools.core.exe"
+                )
+
+                # Check if Power BI Desktop is installed
+                pbi_installed = False
+                try:
+                    pbi_check = subprocess.run(
+                        f'"{powershell}" -Command "Get-AppxPackage -Name Microsoft.MicrosoftPowerBIDesktop"',
+                        capture_output=True,
+                        text=True,
+                        shell=True,
                     )
+                    if "DisplayName" in pbi_check.stdout:
+                        pbi_installed = True
+                except Exception:
+                    pbi_installed = False
+
+                # Check if .NET Framework is available
+                dotnet_framework_ok = False
+                try:
+                    dotnet_check = subprocess.run(
+                        f'"{powershell}" -Command "Get-ChildItem \'HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\' | Get-ItemProperty -Name Release"',
+                        capture_output=True,
+                        text=True,
+                        shell=True,
+                    )
+                    if dotnet_check.returncode == 0:
+                        # Release values: https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies
+                        # .NET 4.7.2 = 461808
+                        match = re.search(r"Release\s+:\s+(\d+)", dotnet_check.stdout)
+                        if match and int(match.group(1)) >= 461808:
+                            dotnet_framework_ok = True
+                except Exception:
+                    dotnet_framework_ok = False
+
+                # Check if .NET 8 runtime is available
+                dotnet_8_ok = False
+                try:
+                    dotnet_runtime_check = subprocess.run(
+                        f'"{powershell}" -Command "dotnet --list-runtimes"',
+                        capture_output=True,
+                        text=True,
+                        shell=True,
+                    )
+                    if dotnet_runtime_check.returncode == 0:
+                        if re.search(
+                            r"Microsoft\.NETCore\.App\s+8\.",
+                            dotnet_runtime_check.stdout,
+                        ):
+                            dotnet_8_ok = True
+                except Exception:
+                    dotnet_8_ok = False
+
+                # Determine which version of pbi-tools to use
+                if (
+                    pbi_installed
+                    and dotnet_framework_ok
+                    and os.path.exists(pbi_tools_win_path)
+                ):
+                    # Use standard version
+                    selected_tool = pbi_tools_win_path
+                    tool_type = "Windows"
+                elif dotnet_8_ok and os.path.exists(pbi_tools_core_path):
+                    # Use .NET Core version
+                    selected_tool = pbi_tools_core_path
+                    tool_type = ".NET Core"
+                else:
+                    # No valid environment found
+                    error_message = "Required environment not found:\n\n"
+                    if not pbi_installed:
+                        error_message += "- Power BI Desktop not installed\n"
+                    if not dotnet_framework_ok:
+                        error_message += (
+                            "- .NET Framework 4.7.2 or higher not detected\n"
+                        )
+                    if not dotnet_8_ok:
+                        error_message += "- .NET 8 Runtime not detected\n"
+
+                    error_message += "\nPlease install the missing components:\n"
+                    error_message += (
+                        "- Power BI Desktop: https://powerbi.microsoft.com/desktop/\n"
+                    )
+                    error_message += "- .NET Framework: https://dotnet.microsoft.com/download/dotnet-framework\n"
+                    error_message += "- .NET 8 Runtime: https://dotnet.microsoft.com/download/dotnet/8.0"
+
+                    messagebox.showerror("Environment Error", error_message)
                     return
 
                 file_path = os.path.normpath(self.file_path)
                 output_path = os.path.normpath(self.output_path)
 
-                cmd = f'''"{powershell}" "{pbi_tools_path}" extract "{file_path}" -extractFolder "{output_path}"'''
+                # Run the appropriate version of pbi-tools
+                cmd = f'''"{powershell}" "{selected_tool}" extract "{file_path}" -extractFolder "{output_path}"'''
 
                 result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
 
@@ -144,9 +229,11 @@ class PBIX_Extractor:
                     messagebox.showinfo(
                         "Success",
                         f"Files extracted to:\n{self.output_path}\n\n"
+                        f"Tool used: {tool_type} version\n\n"
                         "PRIMARY MODEL METADATA:\n"
-                        "- DataModelSchema/model.json (tables, relationships, measures)\n\n"
+                        "Model/Definition/model.bim\n\n"
                         "Additional metadata files:\n"
+                        "- DataModelSchema/model.json (tables, relationships, measures)\n"
                         "- ReportMetadata.json (report-level metadata)\n"
                         "- Connections.json (data source information)\n"
                         "- DiagramLayout.json (model diagram layout)",
@@ -156,7 +243,56 @@ class PBIX_Extractor:
                         f.write(str(result))
 
                     messagebox.showerror("Error", result.stderr)
-            else:  # Linux/Mac
+            else:  # Linux
+                pbi_tools_linux_path = os.path.join(bin_path, "linux", "pbi-tools.core")
+
+                if os.path.exists(pbi_tools_linux_path):
+                    try:
+                        os.chmod(pbi_tools_linux_path, 0o755)
+
+                        file_path = os.path.normpath(self.file_path)
+                        output_path = os.path.normpath(self.output_path)
+
+                        cmd = f'{pbi_tools_linux_path} extract "{file_path}" -extractFolder "{output_path}"'
+
+                        print(f"Executing command: {cmd}")
+
+                        result = subprocess.run(
+                            cmd, capture_output=True, text=True, shell=True
+                        )
+
+                        print(result, "\ncmd: ", cmd)
+
+                        if result.returncode == 0:
+                            messagebox.showinfo(
+                                "Success",
+                                f"Files extracted to:\n{self.output_path}\n\n"
+                                f"Tool used: Linux version\n\n"
+                                "PRIMARY MODEL METADATA:\n"
+                                "Model/Definition/model.bim\n\n"
+                                "Additional metadata files:\n"
+                                "- DataModelSchema/model.json (tables, relationships, measures)\n"
+                                "- ReportMetadata.json (report-level metadata)\n"
+                                "- Connections.json (data source information)\n"
+                                "- DiagramLayout.json (model diagram layout)",
+                            )
+                        else:
+                            with open(log_file, "a") as f:
+                                f.write(f"Command: {cmd}\n")
+                                f.write(f"Return code: {result.returncode}\n")
+                                f.write(f"Stdout: {result.stdout}\n")
+                                f.write(f"Stderr: {result.stderr}\n")
+
+                            messagebox.showerror(
+                                "Error", f"pbi-tools execution failed: {result.stderr}"
+                            )
+                        return
+                    except Exception as e:
+                        messagebox.showerror(
+                            "Linux Error", f"Error running pbi-tools on Linux: {str(e)}"
+                        )
+
+                # Fall back to mock behavior if Linux tool isn't available or failed
                 mock_file = os.path.join(self.output_path, "model.json")
 
                 # Check if test file already exists
