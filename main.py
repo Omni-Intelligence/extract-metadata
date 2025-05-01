@@ -61,27 +61,19 @@ class PBIX_Extractor:
         self.LabelInputPath = tk.Label(self.root, text="Input PBIX:", bg="#f3f0ea")
         self.LabelInputPath.place(relheight=0.2, relx=0.1, rely=0.3)
 
-        self.LabelSelectedFilePath = tk.Label(
-            self.root, text="Select a PBIX file", bg="#f3f0ea"
-        )
+        self.LabelSelectedFilePath = tk.Label(self.root, text="Select a PBIX file", bg="#f3f0ea")
         self.LabelSelectedFilePath.place(relheight=0.2, relx=0.25, rely=0.3)
         # Output path section
         self.LabelOutputPath = tk.Label(self.root, text="Output Path:", bg="#f3f0ea")
         self.LabelOutputPath.place(relheight=0.2, relx=0.1, rely=0.51)
 
-        self.LabelSelectedOutputPath = tk.Label(
-            self.root, text="Select an output path", bg="#f3f0ea"
-        )
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
-        self.button_input_browse = ttk.Button(
-            self.root, text="Browse...", command=self.get_file_path
-        )
+        self.button_input_browse = ttk.Button(self.root, text="Browse...", command=self.get_file_path)
         self.button_input_browse.place(relx=0.65, rely=0.315)
 
-        self.button_output_browse = ttk.Button(
-            self.root, text="Browse...", command=self.get_output_path
-        )
+        self.button_output_browse = ttk.Button(self.root, text="Browse...", command=self.get_output_path)
         self.button_output_browse.place(relx=0.65, rely=0.52)
 
         self.button_cancel = ttk.Button(self.root, text="Cancel", command=self.cancel)
@@ -91,9 +83,7 @@ class PBIX_Extractor:
         self.button_OK.place(relx=0.87, rely=0.8)
 
     def get_file_path(self):
-        self.file_path = filedialog.askopenfilename(
-            title="Select PBIX File", filetypes=[("PBIX Files", "*.pbix")]
-        )
+        self.file_path = filedialog.askopenfilename(title="Select PBIX File", filetypes=[("PBIX Files", "*.pbix")])
         if self.file_path:
             self.button_input_browse.place_forget()
             self.LabelSelectedFilePath.config(text=self.file_path)
@@ -146,37 +136,21 @@ class PBIX_Extractor:
 
             # Check operating system
             if platform.system() == "Windows":
-                powershell = (
-                    r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-                )
-
                 pbi_tools_win_path = os.path.join(bin_path, "win", "pbi-tools.exe")
-                pbi_tools_core_path = os.path.join(
-                    bin_path, "core", "pbi-tools.core.exe"
-                )
+                pbi_tools_core_path = os.path.join(bin_path, "core", "pbi-tools.core.exe")
 
                 # Check if Power BI Desktop is installed
-                pbi_installed = False
-                try:
-                    pbi_check = subprocess.run(
-                        f'"{powershell}" -Command "Get-AppxPackage -Name Microsoft.MicrosoftPowerBIDesktop"',
-                        capture_output=True,
-                        text=True,
-                        shell=True,
-                    )
-                    if "DisplayName" in pbi_check.stdout:
-                        pbi_installed = True
-                except Exception:
-                    pbi_installed = False
+                pbi_folder = r"C:\Program Files\Microsoft Power BI Desktop"
+                pbi_installed = os.path.exists(pbi_folder)
 
                 # Check if .NET Framework is available
                 dotnet_framework_ok = False
                 try:
+                    powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
                     dotnet_check = subprocess.run(
                         f'"{powershell}" -Command "Get-ChildItem \'HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\' | Get-ItemProperty -Name Release"',
                         capture_output=True,
                         text=True,
-                        shell=True,
                     )
                     if dotnet_check.returncode == 0:
                         # Release values: https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies
@@ -190,27 +164,19 @@ class PBIX_Extractor:
                 # Check if .NET 8 runtime is available
                 dotnet_8_ok = False
                 try:
-                    dotnet_runtime_check = subprocess.run(
-                        f'"{powershell}" -Command "dotnet --list-runtimes"',
+                    result = subprocess.run(
+                        ["dotnet", "--list-runtimes"],
                         capture_output=True,
                         text=True,
-                        shell=True,
+                        check=True,
                     )
-                    if dotnet_runtime_check.returncode == 0:
-                        if re.search(
-                            r"Microsoft\.NETCore\.App\s+8\.",
-                            dotnet_runtime_check.stdout,
-                        ):
-                            dotnet_8_ok = True
+                    runtimes = result.stdout
+                    dotnet_8_ok = any("Microsoft.NETCore.App 8." in line for line in runtimes.splitlines())
                 except Exception:
                     dotnet_8_ok = False
 
                 # Determine which version of pbi-tools to use
-                if (
-                    pbi_installed
-                    and dotnet_framework_ok
-                    and os.path.exists(pbi_tools_win_path)
-                ):
+                if pbi_installed and dotnet_framework_ok and os.path.exists(pbi_tools_win_path):
                     # Use standard version
                     selected_tool = pbi_tools_win_path
                     tool_type = "Windows"
@@ -224,16 +190,12 @@ class PBIX_Extractor:
                     if not pbi_installed:
                         error_message += "- Power BI Desktop not installed\n"
                     if not dotnet_framework_ok:
-                        error_message += (
-                            "- .NET Framework 4.7.2 or higher not detected\n"
-                        )
+                        error_message += "- .NET Framework 4.7.2 or higher not detected\n"
                     if not dotnet_8_ok:
                         error_message += "- .NET 8 Runtime not detected\n"
 
                     error_message += "\nPlease install the missing components:\n"
-                    error_message += (
-                        "- Power BI Desktop: https://powerbi.microsoft.com/desktop/\n"
-                    )
+                    error_message += "- Power BI Desktop: https://powerbi.microsoft.com/desktop/\n"
                     error_message += "- .NET Framework: https://dotnet.microsoft.com/download/dotnet-framework\n"
                     error_message += "- .NET 8 Runtime: https://dotnet.microsoft.com/download/dotnet/8.0"
 
@@ -243,10 +205,15 @@ class PBIX_Extractor:
                 file_path = os.path.normpath(self.file_path)
                 output_path = os.path.normpath(self.output_path)
 
-                # Run the appropriate version of pbi-tools
-                cmd = f'''"{powershell}" "{selected_tool}" extract "{file_path}" -extractFolder "{output_path}"'''
+                cmd = [
+                    selected_tool,
+                    "extract",
+                    file_path,
+                    "-extractFolder",
+                    output_path,
+                ]
 
-                result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+                result = subprocess.run(cmd, capture_output=True, text=True)
 
                 if result.returncode == 0:
                     messagebox.showinfo(
@@ -280,9 +247,7 @@ class PBIX_Extractor:
 
                         print(f"Executing command: {cmd}")
 
-                        result = subprocess.run(
-                            cmd, capture_output=True, text=True, shell=True
-                        )
+                        result = subprocess.run(cmd, capture_output=True, text=True)
 
                         print(result, "\ncmd: ", cmd)
 
@@ -306,14 +271,10 @@ class PBIX_Extractor:
                                 f.write(f"Stdout: {result.stdout}\n")
                                 f.write(f"Stderr: {result.stderr}\n")
 
-                            messagebox.showerror(
-                                "Error", f"pbi-tools execution failed: {result.stderr}"
-                            )
+                            messagebox.showerror("Error", f"pbi-tools execution failed: {result.stderr}")
                         return
                     except Exception as e:
-                        messagebox.showerror(
-                            "Linux Error", f"Error running pbi-tools on Linux: {str(e)}"
-                        )
+                        messagebox.showerror("Linux Error", f"Error running pbi-tools on Linux: {str(e)}")
 
                 # Fall back to mock behavior if Linux tool isn't available or failed
                 mock_file = os.path.join(self.output_path, "model.json")

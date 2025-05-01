@@ -28,8 +28,9 @@ jobs:
     - name: Build executable
       run: |
         pyinstaller --noconfirm --onefile --windowed `
-          --add-data "bin/pbi-tools.exe;bin" `
-          --add-binary "bin/pbi-tools.exe;bin" `
+          --add-data "bin/win/*;bin/win/" `
+          --add-data "bin/core/*;bin/core/" `
+          --add-data "bin/linux/*;bin/linux/" `
           --hidden-import tkinter `
           --hidden-import tkinter.ttk `
           --hidden-import tkinter.filedialog `
