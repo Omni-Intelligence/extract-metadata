@@ -66,15 +66,12 @@ class PBIX_Extractor:
         self.LabelOutputPath = tk.Label(self.root, text="Output Path:", bg="#f3f0ea")
         self.LabelOutputPath.place(relheight=0.2, relx=0.1, rely=0.51)
 
-        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path (optional)", bg="#f3f0ea")
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Default: Subfolder next to PBIX", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
         # Add Info button for Output Path
         self.button_output_info = ttk.Button(self.root, text="?", width=2, command=self.show_output_path_info)
         self.button_output_info.place(relx=0.21, rely=0.52, height=20)
-
-        self.LabelSelectedOutputPath = tk.Label(self.root, text="Default: Subfolder next to PBIX", bg="#f3f0ea")
-        self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
         self.button_input_browse = ttk.Button(self.root, text="Browse...", command=self.get_file_path)
         self.button_input_browse.place(relx=0.8, rely=0.315)
