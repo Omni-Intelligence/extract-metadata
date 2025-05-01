@@ -249,11 +249,22 @@ class PBIX_Extractor:
 
             if pbi_tools_result.returncode == 0:
                 extraction_dir = ""
-                if self.output_path_manually_set:
+                if self.output_path_manually_set and os.path.exists(os.path.join(effective_output_path, "Model")):
                     extraction_dir = os.path.normpath(effective_output_path)
                 else:
                     pbix_filename_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
-                    extraction_dir = os.path.join(os.path.normpath(effective_output_path), pbix_filename_no_ext)
+                    potential_path = os.path.join(os.path.normpath(effective_output_path), pbix_filename_no_ext)
+                    if os.path.exists(os.path.join(potential_path, "Model")):
+                        extraction_dir = potential_path
+                    else:
+                        messagebox.showerror(
+                            "Extraction Error",
+                            "Could not find Model folder in expected locations:\n"
+                            f"- {effective_output_path}\n"
+                            f"- {potential_path}",
+                            parent=self.root,
+                        )
+                        return
                 try:
                     extractor = PowerBIModelExtractor(extraction_dir)
                     model_info = extractor.extract_all()
