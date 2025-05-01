@@ -250,7 +250,7 @@ class PBIX_Extractor:
                     extraction_dir = os.path.normpath(effective_output_path)
                 else:
                     pbix_filename_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
-                    potential_path = os.path.join(os.path.normpath(effective_output_path), pbix_filename_no_ext)
+                    potential_path = os.path.join(os.path.dirname(self.file_path), pbix_filename_no_ext)
                     if os.path.exists(os.path.join(potential_path, "Model")):
                         extraction_dir = potential_path
                     else:
