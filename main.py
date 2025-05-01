@@ -252,7 +252,7 @@ class PBIX_Extractor:
                     pbix_filename_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
                     potential_path = os.path.join(os.path.dirname(self.file_path), pbix_filename_no_ext)
                     if os.path.exists(os.path.join(potential_path, "Model")):
-                        extraction_dir = potential_path
+                        extraction_dir = os.path.normpath(potential_path)
                     else:
                         messagebox.showerror(
                             "Extraction Error",
@@ -266,7 +266,10 @@ class PBIX_Extractor:
                     extractor = PowerBIModelExtractor(extraction_dir)
                     model_info = extractor.extract_all()
 
-                    output_json_path = os.path.join(extraction_dir, "pbi_model_info.json")
+                    save_dir = os.path.normpath(
+                        effective_output_path if self.output_path_manually_set else extraction_dir
+                    )
+                    output_json_path = os.path.join(save_dir, "pbi_model_info.json")
                     with open(output_json_path, "w", encoding="utf-8") as f:
                         json.dump(model_info, f, indent=2)
 
