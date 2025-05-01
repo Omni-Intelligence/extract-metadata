@@ -18,33 +18,26 @@ def get_base_path():
 
 class PBIX_Extractor:
     def __init__(self):
-        # Initialize the root widget
         self.root = tk.Tk()
         self.root.title("PBIX Model Extractor")
 
-        # Window configuration
         self.root.configure(bg="#f3f0ea")
         self.root.geometry("800x250")
-        # self.root.resizable(False, False)
 
-        # Center window on screen
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = (screen_width / 2) - (800 / 2)
         y = (screen_height / 2) - (250 / 2)
         self.root.geometry(f"800x250+{int(x)}+{int(y)}")
 
-        # Keep window on top
         self.root.attributes("-topmost", True)
 
-        # Initialize path variables and state
         self.file_path = None
         self.output_path = None
-        self.output_path_manually_set = False  # Flag to track if user selected output path
+        self.output_path_manually_set = False
 
         self.create_widgets()
 
-        # Disable OK button initially
         self.button_OK["state"] = "disabled"
 
         self.root.mainloop()
@@ -72,21 +65,21 @@ class PBIX_Extractor:
         self.LabelOutputPath = tk.Label(self.root, text="Output Path:", bg="#f3f0ea")
         self.LabelOutputPath.place(relheight=0.2, relx=0.1, rely=0.51)
 
-        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path", bg="#f3f0ea")
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path (optional)", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
         # Add Info button for Output Path
         self.button_output_info = ttk.Button(self.root, text="?", width=2, command=self.show_output_path_info)
         self.button_output_info.place(relx=0.21, rely=0.52, height=20)
 
-        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path or leave default", bg="#f3f0ea")
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Default: Subfolder next to PBIX", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
         self.button_input_browse = ttk.Button(self.root, text="Browse...", command=self.get_file_path)
-        self.button_input_browse.place(relx=0.65, rely=0.315)
+        self.button_input_browse.place(relx=0.8, rely=0.315)
 
         self.button_output_browse = ttk.Button(self.root, text="Browse...", command=self.get_output_path)
-        self.button_output_browse.place(relx=0.65, rely=0.52)
+        self.button_output_browse.place(relx=0.8, rely=0.52)
 
         self.button_cancel = ttk.Button(self.root, text="Cancel", command=self.cancel)
         self.button_cancel.place(relx=0.75, rely=0.8)
@@ -108,16 +101,7 @@ class PBIX_Extractor:
         if self.file_path:
             self.button_input_browse.place_forget()
             self.LabelSelectedFilePath.config(text=self.file_path)
-
-            # Set default output path if not manually set
-            if not self.output_path_manually_set:
-                pbix_dir = os.path.dirname(self.file_path)
-                pbix_name_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
-                self.output_path = os.path.join(pbix_dir, pbix_name_no_ext)
-                self.LabelSelectedOutputPath.config(text=self.output_path)
-
-            # Enable OK button only if both paths are set
-            if self.file_path and self.output_path:
+            if self.file_path:
                 self.button_OK["state"] = "normal"
 
     def get_output_path(self):
@@ -127,9 +111,7 @@ class PBIX_Extractor:
             self.output_path_manually_set = True
             self.button_output_browse.place_forget()
             self.LabelSelectedOutputPath.config(text=self.output_path)
-
-            # Enable OK button only if both paths are set
-            if self.file_path and self.output_path:
+            if self.file_path:
                 self.button_OK["state"] = "normal"
 
     def cancel(self):
@@ -138,13 +120,13 @@ class PBIX_Extractor:
 
     def extract_model(self):
         try:
-            os.makedirs(self.output_path, exist_ok=True)
-            log_file = os.path.join(self.output_path, "extraction_log.txt")
+            effective_output_path = (
+                self.output_path if self.output_path_manually_set else os.path.dirname(self.file_path)
+            )
 
             # Check for Windows path length limitation
             if platform.system() == "Windows":
                 file_path = os.path.normpath(self.file_path)
-                output_path = os.path.normpath(self.output_path)
 
                 if len(file_path) >= 260:
                     messagebox.showerror(
@@ -154,6 +136,8 @@ class PBIX_Extractor:
                         "Please use a shorter file path or move the file closer to the root directory.",
                     )
                     return
+
+                output_path = os.path.normpath(effective_output_path)
 
                 if len(output_path) >= 260:
                     messagebox.showerror(
@@ -210,15 +194,12 @@ class PBIX_Extractor:
 
                 # Determine which version of pbi-tools to use
                 if pbi_installed and dotnet_framework_ok and os.path.exists(pbi_tools_win_path):
-                    # Use standard version
                     selected_tool = pbi_tools_win_path
-                    tool_type = "Windows"
+                    tool_type = "Power BI Desktop"
                 elif dotnet_8_ok and os.path.exists(pbi_tools_core_path):
-                    # Use .NET Core version
                     selected_tool = pbi_tools_core_path
-                    tool_type = ".NET Core"
+                    tool_type = ".NET Runtime"
                 else:
-                    # No valid environment found
                     error_message = "Required environment not found:\n\n"
                     if not pbi_installed:
                         error_message += "- Power BI Desktop not installed\n"
@@ -226,29 +207,24 @@ class PBIX_Extractor:
                         error_message += "- .NET Framework 4.7.2 or higher not detected\n"
                     if not dotnet_8_ok:
                         error_message += "- .NET 8 Runtime not detected\n"
-
-                    error_message += "\nPlease install the missing components:\n"
-                    error_message += "- Power BI Desktop: https://powerbi.microsoft.com/desktop/\n"
-                    error_message += "- .NET Framework: https://dotnet.microsoft.com/download/dotnet-framework\n"
-                    error_message += "- .NET 8 Runtime: https://dotnet.microsoft.com/download/dotnet/8.0"
+                    error_message += "\nPlease install the missing software"
 
                     messagebox.showerror("Environment Error", error_message)
                     return
 
                 file_path = os.path.normpath(self.file_path)
-                output_path = os.path.normpath(self.output_path)
 
                 cmd = [selected_tool, "extract", file_path]
 
                 if self.output_path_manually_set:
-                    cmd.extend(["-extractFolder", output_path])
+                    cmd.extend(["-extractFolder", os.path.normpath(self.output_path)])
 
                 result = subprocess.run(cmd, capture_output=True, text=True)
 
                 if result.returncode == 0:
                     messagebox.showinfo(
                         "Success",
-                        f"Files extracted to:\n{self.output_path}\n\n"
+                        f"Files extracted to:\n{effective_output_path}\n\n"
                         f"Tool used: {tool_type} version\n\n"
                         "PRIMARY MODEL METADATA:\n"
                         "Model/Definition/model.bim\n\n"
@@ -259,9 +235,7 @@ class PBIX_Extractor:
                         "- DiagramLayout.json (model diagram layout)",
                     )
                 else:
-                    with open(log_file, "a") as f:
-                        f.write(str(result))
-
+                    print(str(result))
                     messagebox.showerror("Error", result.stderr)
             else:  # Linux
                 pbi_tools_linux_path = os.path.join(bin_path, "linux", "pbi-tools.core")
@@ -271,12 +245,12 @@ class PBIX_Extractor:
                         os.chmod(pbi_tools_linux_path, 0o755)
 
                         file_path = os.path.normpath(self.file_path)
-                        output_path = os.path.normpath(self.output_path)
 
-                        cmd = f'{pbi_tools_linux_path} extract "{file_path}"'
+                        cmd = [pbi_tools_linux_path, "extract", file_path]
 
-                        if self.output_path_manually_set:
-                            cmd += f' -extractFolder "{output_path}"'
+                        if self.output_path_manually_set and self.output_path:
+                            output_path = os.path.normpath(self.output_path)
+                            cmd.extend(["-extractFolder", output_path])
 
                         print(f"Executing command: {cmd}")
 
@@ -287,8 +261,8 @@ class PBIX_Extractor:
                         if result.returncode == 0:
                             messagebox.showinfo(
                                 "Success",
-                                f"Files extracted to:\n{self.output_path}\n\n"
-                                f"Tool used: Linux version\n\n"
+                                f"Files extracted to:\n{effective_output_path}\n\n"
+                                f"Tool used: {tool_type} version\n\n"
                                 "PRIMARY MODEL METADATA:\n"
                                 "Model/Definition/model.bim\n\n"
                                 "Additional metadata files:\n"
@@ -298,44 +272,11 @@ class PBIX_Extractor:
                                 "- DiagramLayout.json (model diagram layout)",
                             )
                         else:
-                            with open(log_file, "a") as f:
-                                f.write(f"Command: {cmd}\n")
-                                f.write(f"Return code: {result.returncode}\n")
-                                f.write(f"Stdout: {result.stdout}\n")
-                                f.write(f"Stderr: {result.stderr}\n")
-
-                            messagebox.showerror("Error", f"pbi-tools execution failed: {result.stderr}")
+                            print(str(result))
+                            messagebox.showerror("Error", result.stderr)
                         return
                     except Exception as e:
                         messagebox.showerror("Linux Error", f"Error running pbi-tools on Linux: {str(e)}")
-
-                # Fall back to mock behavior if Linux tool isn't available or failed
-                mock_file = os.path.join(self.output_path, "model.json")
-
-                # Check if test file already exists
-                if os.path.exists(mock_file):
-                    response = messagebox.askyesno(
-                        "File Exists",
-                        "Test file already exists. Do you want to overwrite it?",
-                    )
-                    if not response:
-                        return
-
-                mock_output = {
-                    "tables": [
-                        {"name": "Table1", "columns": ["Col1", "Col2"]},
-                        {"name": "Table2", "columns": ["Col3", "Col4"]},
-                    ],
-                    "relationships": [{"fromTable": "Table1", "toTable": "Table2"}],
-                }
-
-                with open(mock_file, "w") as f:
-                    json.dump(mock_output, f, indent=2)
-
-                messagebox.showinfo(
-                    "Success (Test Mode)",
-                    f"Mock metadata created at:\n{mock_file}\n\nNote: This is a test mode for Linux.",
-                )
         except Exception as e:
             messagebox.showerror("Error", str(e))
         finally:
