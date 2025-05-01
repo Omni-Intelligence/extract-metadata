@@ -37,6 +37,11 @@ class PBIX_Extractor:
         # Keep window on top
         self.root.attributes("-topmost", True)
 
+        # Initialize path variables and state
+        self.file_path = None
+        self.output_path = None
+        self.output_path_manually_set = False  # Flag to track if user selected output path
+
         self.create_widgets()
 
         # Disable OK button initially
@@ -70,6 +75,13 @@ class PBIX_Extractor:
         self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
+        # Add Info button for Output Path
+        self.button_output_info = ttk.Button(self.root, text="?", width=2, command=self.show_output_path_info)
+        self.button_output_info.place(relx=0.21, rely=0.52, height=20)
+
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Select an output path or leave default", bg="#f3f0ea")
+        self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
+
         self.button_input_browse = ttk.Button(self.root, text="Browse...", command=self.get_file_path)
         self.button_input_browse.place(relx=0.65, rely=0.315)
 
@@ -82,21 +94,42 @@ class PBIX_Extractor:
         self.button_OK = ttk.Button(self.root, text="OK", command=self.extract_model)
         self.button_OK.place(relx=0.87, rely=0.8)
 
+    def show_output_path_info(self):
+        info_text = (
+            "Extraction works best for 'V3' PBIX files (created with Power BI Desktop from September 2020 or newer).\n\n"
+            "Legacy PBIX files might have limited support.\n\n"
+            "Default Behavior: If you don't select a specific output path, a sub-folder will be created in the same directory as the input PBIX file. This sub-folder will have the same name as the PBIX file (without the .pbix extension).\n\n"
+            "Manual Selection: If you use 'Browse...' to select an output path, the extracted files will be placed directly into the selected folder."
+        )
+        messagebox.showinfo("Output Path Information", info_text, parent=self.root)
+
     def get_file_path(self):
         self.file_path = filedialog.askopenfilename(title="Select PBIX File", filetypes=[("PBIX Files", "*.pbix")])
         if self.file_path:
             self.button_input_browse.place_forget()
             self.LabelSelectedFilePath.config(text=self.file_path)
-            if hasattr(self, "output_path"):
+
+            # Set default output path if not manually set
+            if not self.output_path_manually_set:
+                pbix_dir = os.path.dirname(self.file_path)
+                pbix_name_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
+                self.output_path = os.path.join(pbix_dir, pbix_name_no_ext)
+                self.LabelSelectedOutputPath.config(text=self.output_path)
+
+            # Enable OK button only if both paths are set
+            if self.file_path and self.output_path:
                 self.button_OK["state"] = "normal"
 
     def get_output_path(self):
-        self.output_path = filedialog.askdirectory(title="Select Output Directory")
-        if self.output_path:
-            self.output_path = os.path.join(self.output_path, "pbi_output")
+        output_path_temp = filedialog.askdirectory(title="Select Output Directory")
+        if output_path_temp:
+            self.output_path = output_path_temp
+            self.output_path_manually_set = True
             self.button_output_browse.place_forget()
             self.LabelSelectedOutputPath.config(text=self.output_path)
-            if hasattr(self, "file_path"):
+
+            # Enable OK button only if both paths are set
+            if self.file_path and self.output_path:
                 self.button_OK["state"] = "normal"
 
     def cancel(self):
@@ -205,13 +238,10 @@ class PBIX_Extractor:
                 file_path = os.path.normpath(self.file_path)
                 output_path = os.path.normpath(self.output_path)
 
-                cmd = [
-                    selected_tool,
-                    "extract",
-                    file_path,
-                    "-extractFolder",
-                    output_path,
-                ]
+                cmd = [selected_tool, "extract", file_path]
+
+                if self.output_path_manually_set:
+                    cmd.extend(["-extractFolder", output_path])
 
                 result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -243,7 +273,10 @@ class PBIX_Extractor:
                         file_path = os.path.normpath(self.file_path)
                         output_path = os.path.normpath(self.output_path)
 
-                        cmd = f'{pbi_tools_linux_path} extract "{file_path}" -extractFolder "{output_path}"'
+                        cmd = f'{pbi_tools_linux_path} extract "{file_path}"'
+
+                        if self.output_path_manually_set:
+                            cmd += f' -extractFolder "{output_path}"'
 
                         print(f"Executing command: {cmd}")
 
