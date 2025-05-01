@@ -43,4 +43,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pbix-extractor-windows
-        path: dist/pbix-extractor.zip
+        path: dist/*
