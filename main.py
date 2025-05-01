@@ -7,6 +7,7 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
+from extract_pbi_model_info import PowerBIModelExtractor
 
 
 def get_base_path():
@@ -150,6 +151,10 @@ class PBIX_Extractor:
 
             base_path = get_base_path()
             bin_path = os.path.join(base_path, "bin")
+            selected_tool = None
+            tool_type = "Unknown"
+            cmd = []
+            pbi_tools_result = None
 
             # Check operating system
             if platform.system() == "Windows":
@@ -208,7 +213,6 @@ class PBIX_Extractor:
                     if not dotnet_8_ok:
                         error_message += "- .NET 8 Runtime not detected\n"
                     error_message += "\nPlease install the missing software"
-
                     messagebox.showerror("Environment Error", error_message)
                     return
 
@@ -219,24 +223,8 @@ class PBIX_Extractor:
                 if self.output_path_manually_set:
                     cmd.extend(["-extractFolder", os.path.normpath(self.output_path)])
 
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                pbi_tools_result = subprocess.run(cmd, capture_output=True, text=True)
 
-                if result.returncode == 0:
-                    messagebox.showinfo(
-                        "Success",
-                        f"Files extracted to:\n{effective_output_path}\n\n"
-                        f"Tool used: {tool_type} version\n\n"
-                        "PRIMARY MODEL METADATA:\n"
-                        "Model/Definition/model.bim\n\n"
-                        "Additional metadata files:\n"
-                        "- DataModelSchema/model.json (tables, relationships, measures)\n"
-                        "- ReportMetadata.json (report-level metadata)\n"
-                        "- Connections.json (data source information)\n"
-                        "- DiagramLayout.json (model diagram layout)",
-                    )
-                else:
-                    print(str(result))
-                    messagebox.showerror("Error", result.stderr)
             else:  # Linux
                 pbi_tools_linux_path = os.path.join(bin_path, "linux", "pbi-tools.core")
 
@@ -254,29 +242,47 @@ class PBIX_Extractor:
 
                         print(f"Executing command: {cmd}")
 
-                        result = subprocess.run(cmd, capture_output=True, text=True)
+                        pbi_tools_result = subprocess.run(cmd, capture_output=True, text=True)
 
-                        print(result, "\ncmd: ", cmd)
-
-                        if result.returncode == 0:
-                            messagebox.showinfo(
-                                "Success",
-                                f"Files extracted to:\n{effective_output_path}\n\n"
-                                f"Tool used: {tool_type} version\n\n"
-                                "PRIMARY MODEL METADATA:\n"
-                                "Model/Definition/model.bim\n\n"
-                                "Additional metadata files:\n"
-                                "- DataModelSchema/model.json (tables, relationships, measures)\n"
-                                "- ReportMetadata.json (report-level metadata)\n"
-                                "- Connections.json (data source information)\n"
-                                "- DiagramLayout.json (model diagram layout)",
-                            )
-                        else:
-                            print(str(result))
-                            messagebox.showerror("Error", result.stderr)
-                        return
                     except Exception as e:
                         messagebox.showerror("Linux Error", f"Error running pbi-tools on Linux: {str(e)}")
+
+            if pbi_tools_result.returncode == 0:
+                extraction_dir = ""
+                if self.output_path_manually_set:
+                    extraction_dir = os.path.normpath(effective_output_path)
+                else:
+                    pbix_filename_no_ext = os.path.splitext(os.path.basename(self.file_path))[0]
+                    extraction_dir = os.path.join(os.path.normpath(effective_output_path), pbix_filename_no_ext)
+                try:
+                    extractor = PowerBIModelExtractor(extraction_dir)
+                    model_info = extractor.extract_all()
+
+                    output_json_path = os.path.join(extraction_dir, "pbi_model_info.json")
+                    with open(output_json_path, "w", encoding="utf-8") as f:
+                        json.dump(model_info, f, indent=2)
+
+                    messagebox.showinfo(
+                        "Success",
+                        f"PBIX files extracted using {tool_type} to:\n{extraction_dir}\n\n"
+                        f"Model metadata successfully processed and saved to:\n{output_json_path}",
+                        parent=self.root,
+                    )
+                except Exception as e_meta:
+                    messagebox.showerror(
+                        "Metadata Processing Error",
+                        f"PBIX files extracted to:\n{extraction_dir}\n\n"
+                        f"An error occurred while processing the metadata:\n{str(e_meta)}",
+                        parent=self.root,
+                    )
+            else:
+                print(str(pbi_tools_result))
+
+                error_output = pbi_tools_result.stderr if pbi_tools_result.stderr else pbi_tools_result.stdout
+                messagebox.showerror(
+                    "PBI-Tools Extraction Error", f"Failed to extract PBIX file:\n\n{error_output}", parent=self.root
+                )
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
         finally:
