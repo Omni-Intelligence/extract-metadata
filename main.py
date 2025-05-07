@@ -20,7 +20,7 @@ def get_base_path():
 class PBIX_Extractor:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("PBIX Model Extractor")
+        self.root.title("EDNAHQ PBIX Model Extractor")
 
         self.root.configure(bg="#f3f0ea")
         self.root.geometry("800x250")
@@ -84,6 +84,16 @@ class PBIX_Extractor:
 
         self.button_OK = ttk.Button(self.root, text="OK", command=self.extract_model)
         self.button_OK.place(relx=0.87, rely=0.8)
+
+        # Powered by PBI-tools badge
+        self.powered_by_label = tk.Label(
+            self.root,
+            text="Powered by PBI-tools",
+            font=("Segoe UI", 8),
+            fg="#666666",
+            bg="#f3f0ea",
+        )
+        self.powered_by_label.place(relx=0.02, rely=0.93)
 
     def show_output_path_info(self):
         info_text = (
