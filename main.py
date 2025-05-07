@@ -128,6 +128,24 @@ class PBIX_Extractor:
 
     def extract_model(self):
         try:
+            # Add file access check for Windows
+            if platform.system() == "Windows":
+                try:
+                    with open(self.file_path, "rb") as _:
+                        pass
+                except PermissionError:
+                    messagebox.showerror(
+                        "File Access Error",
+                        "Cannot access the PBIX file. Please make sure it is not opened in Power BI Desktop or another program.",
+                        parent=self.root,
+                    )
+                    return
+                except Exception as e:
+                    messagebox.showerror(
+                        "File Access Error", f"Error accessing the PBIX file: {str(e)}", parent=self.root
+                    )
+                    return
+
             effective_output_path = (
                 self.output_path if self.output_path_manually_set else os.path.dirname(self.file_path)
             )
