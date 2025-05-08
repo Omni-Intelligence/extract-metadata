@@ -128,6 +128,21 @@ class PBIX_Extractor:
 
     def extract_model(self):
         try:
+            # Add input/output path validation
+            if self.output_path_manually_set:
+                output_dir = os.path.normpath(self.output_path)
+                input_file = os.path.normpath(self.file_path)
+                
+                # Check if input file is within output directory
+                if os.path.commonpath([output_dir]) == os.path.commonpath([output_dir, input_file]):
+                    messagebox.showerror(
+                        "Invalid Path",
+                        "The PBIX file cannot be located within the output folder.\n"
+                        "Please select a different output location.",
+                        parent=self.root
+                    )
+                    return
+            
             # Add file access check for Windows
             if platform.system() == "Windows":
                 try:
@@ -136,7 +151,10 @@ class PBIX_Extractor:
                 except PermissionError:
                     messagebox.showerror(
                         "File Access Error",
-                        "Cannot access the PBIX file. Please make sure it is not opened in Power BI Desktop or another program.",
+                        "Cannot access the PBIX file. Please ensure:\n\n"
+                        "1. The file is not opened in Power BI Desktop\n"
+                        "2. No other program is using the file\n"
+                        "3. You have permissions to access the file",
                         parent=self.root,
                     )
                     return
