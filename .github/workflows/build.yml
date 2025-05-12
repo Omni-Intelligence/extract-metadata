@@ -23,18 +23,17 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
+        pip install pyinstaller requests
         
     - name: Build executable
       run: |
         pyinstaller --noconfirm --onefile --windowed --noconsole `
-          --add-data "bin/win/*;bin/win/" `
-          --add-data "bin/core/*;bin/core/" `
-          --add-data "bin/linux/*;bin/linux/" `
+          --add-data "bin/*;bin/" `
           --hidden-import tkinter `
           --hidden-import tkinter.ttk `
           --hidden-import tkinter.filedialog `
           --hidden-import tkinter.messagebox `
+          --hidden-import requests `
           --name "pbix-extractor" `
           --icon "assets/icon.ico" `
           main.py
