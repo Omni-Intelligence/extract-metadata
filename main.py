@@ -1,12 +1,14 @@
 import json
 import os
 import platform
-import re
+import requests
+import socket
 import subprocess
 import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog, messagebox
+import uuid
 from extract_pbi_model_info import PowerBIModelExtractor
 
 
@@ -15,6 +17,36 @@ def get_base_path():
     if getattr(sys, "frozen", False):
         return sys._MEIPASS
     return os.path.abspath(os.path.dirname(__file__))
+
+
+def send_error_report(error_message, error_type, additional_info=None):
+    """Send error report to the logging website"""
+    try:
+        system_info = {
+            "os": platform.system(),
+            "os_version": platform.version(),
+            "hostname": socket.gethostname(),
+            "python_version": sys.version,
+            "app_version": "1.0.0",
+            "incident_id": str(uuid.uuid4()),
+        }
+
+        payload = {
+            "error_message": str(error_message),
+            "error_type": error_type,
+            "system_info": system_info,
+            "additional_info": additional_info or {},
+        }
+
+        response = requests.post(
+            "https://app.enterprisedna.co/api/v1/extractor-error",
+            json=payload,
+            timeout=5,
+        )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Failed to send error report: {str(e)}")
+        return False
 
 
 class PBIX_Extractor:
@@ -140,8 +172,13 @@ class PBIX_Extractor:
                     "   C:\\Program Files\\Microsoft Power BI Desktop\\)",
                     parent=self.root
                 )
-                self.root.destroy()
-                sys.exit(1) 
+                error_info = {
+                    "file_path": self.file_path,
+                    "output_path": self.output_path,
+                    "operation": "extract_model",
+                }
+                self.root.quit()
+                return 
 
             # Check if Power BI Desktop is installed
             pbi_folder = r"C:\Program Files\Microsoft Power BI Desktop"
@@ -286,6 +323,12 @@ class PBIX_Extractor:
                 )
 
         except Exception as e:
+            error_info = {
+                "file_path": self.file_path,
+                "output_path": self.output_path,
+                "operation": "extract_model",
+            }
+            send_error_report(str(e), "extraction_error", error_info)
             messagebox.showerror("Error", str(e))
         finally:
             self.root.destroy()
