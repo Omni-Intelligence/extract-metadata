@@ -66,7 +66,7 @@ class PBIX_Extractor:
         self.LabelOutputPath = tk.Label(self.root, text="Output Path:", bg="#f3f0ea")
         self.LabelOutputPath.place(relheight=0.2, relx=0.1, rely=0.51)
 
-        self.LabelSelectedOutputPath = tk.Label(self.root, text="Default: Subfolder next to PBIX", bg="#f3f0ea")
+        self.LabelSelectedOutputPath = tk.Label(self.root, text="Default: New subfolder next to PBIX", bg="#f3f0ea")
         self.LabelSelectedOutputPath.place(relheight=0.2, relx=0.25, rely=0.51)
 
         # Add Info button for Output Path
@@ -128,7 +128,34 @@ class PBIX_Extractor:
 
     def extract_model(self):
         try:
-            # Add input/output path validation
+            # Check if running on Windows
+            if platform.system() != "Windows":
+                messagebox.showerror(
+                    "Unsupported Operating System",
+                    "This application is designed for Windows only.\n\n"
+                    "Requirements:\n"
+                    "- Windows OS\n"
+                    "- Power BI Desktop x64\n"
+                    "  (Must be installed in default location:\n"
+                    "   C:\\Program Files\\Microsoft Power BI Desktop\\)",
+                    parent=self.root
+                )
+                self.root.destroy()
+                sys.exit(1) 
+
+            # Check if Power BI Desktop is installed
+            pbi_folder = r"C:\Program Files\Microsoft Power BI Desktop"
+            if not os.path.exists(pbi_folder):
+                messagebox.showerror(
+                    "Power BI Desktop Not Found",
+                    "Power BI Desktop is not installed in the default location:\n"
+                    "C:\\Program Files\\Microsoft Power BI Desktop\\\n\n"
+                    "Please install Power BI Desktop x64 version.",
+                    parent=self.root
+                )
+                return
+
+            # Validate file paths
             if self.output_path_manually_set:
                 output_dir = os.path.normpath(self.output_path)
                 input_file = os.path.normpath(self.file_path)
@@ -142,153 +169,71 @@ class PBIX_Extractor:
                         parent=self.root
                     )
                     return
-            
-            # Add file access check for Windows
-            if platform.system() == "Windows":
-                try:
-                    with open(self.file_path, "rb") as _:
-                        pass
-                except PermissionError:
-                    messagebox.showerror(
-                        "File Access Error",
-                        "Cannot access the PBIX file. Please ensure:\n\n"
-                        "1. The file is not opened in Power BI Desktop\n"
-                        "2. No other program is using the file\n"
-                        "3. You have permissions to access the file",
-                        parent=self.root,
-                    )
-                    return
-                except Exception as e:
-                    messagebox.showerror(
-                        "File Access Error", f"Error accessing the PBIX file: {str(e)}", parent=self.root
-                    )
-                    return
+
+            # Check file access
+            try:
+                with open(self.file_path, "rb") as _:
+                    pass
+            except PermissionError:
+                messagebox.showerror(
+                    "File Access Error",
+                    "Cannot access the PBIX file. Please ensure:\n\n"
+                    "1. The file is not opened in Power BI Desktop\n"
+                    "2. No other program is using the file\n"
+                    "3. You have permissions to access the file",
+                    parent=self.root,
+                )
+                return
+            except Exception as e:
+                messagebox.showerror(
+                    "File Access Error", 
+                    f"Error accessing the PBIX file: {str(e)}", 
+                    parent=self.root
+                )
+                return
 
             effective_output_path = (
                 self.output_path if self.output_path_manually_set else os.path.dirname(self.file_path)
             )
 
-            # Check for Windows path length limitation
-            if platform.system() == "Windows":
-                file_path = os.path.normpath(self.file_path)
+            # Windows path length checks
+            file_path = os.path.normpath(self.file_path)
+            output_path = os.path.normpath(effective_output_path)
 
-                if len(file_path) >= 260:
-                    messagebox.showerror(
-                        "Path Too Long",
-                        "Input file path exceeds Windows 260 character limit:\n"
-                        f"Length: {len(file_path)}\n\n"
-                        "Please use a shorter file path or move the file closer to the root directory.",
-                    )
-                    return
+            if len(file_path) >= 260:
+                messagebox.showerror(
+                    "Path Too Long",
+                    "Input file path exceeds Windows 260 character limit:\n"
+                    f"Length: {len(file_path)}\n\n"
+                    "Please use a shorter file path or move the file closer to the root directory.",
+                )
+                return
 
-                output_path = os.path.normpath(effective_output_path)
-
-                if len(output_path) >= 260:
-                    messagebox.showerror(
-                        "Path Too Long",
-                        "Output path exceeds Windows 260 character limit:\n"
-                        f"Length: {len(output_path)}\n\n"
-                        "Please select an output location with a shorter path.",
-                    )
-                    return
+            if len(output_path) >= 260:
+                messagebox.showerror(
+                    "Path Too Long",
+                    "Output path exceeds Windows 260 character limit:\n"
+                    f"Length: {len(output_path)}\n\n"
+                    "Please select an output location with a shorter path.",
+                )
+                return
 
             base_path = get_base_path()
-            bin_path = os.path.join(base_path, "bin")
-            selected_tool = None
-            tool_type = "Unknown"
-            cmd = []
-            pbi_tools_result = None
+            pbi_tools_path = os.path.join(base_path, "bin", "pbi-tools.exe")
 
-            # Check operating system
-            if platform.system() == "Windows":
-                pbi_tools_win_path = os.path.join(bin_path, "win", "pbi-tools.exe")
-                pbi_tools_core_path = os.path.join(bin_path, "core", "pbi-tools.core.exe")
+            if not os.path.exists(pbi_tools_path):
+                messagebox.showerror(
+                    "Missing Component",
+                    "Required component not found: pbi-tools.exe",
+                    parent=self.root
+                )
+                return
+            
+            cmd = [pbi_tools_path, "extract", os.path.normpath(self.file_path)]
+            if self.output_path_manually_set:
+                cmd.extend(["-extractFolder", os.path.normpath(self.output_path)])
 
-                # Check if Power BI Desktop is installed
-                pbi_folder = r"C:\Program Files\Microsoft Power BI Desktop"
-                pbi_installed = os.path.exists(pbi_folder)
-
-                # Check if .NET Framework is available
-                dotnet_framework_ok = False
-                try:
-                    powershell = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-                    dotnet_check = subprocess.run(
-                        f'"{powershell}" -Command "Get-ChildItem \'HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\' | Get-ItemProperty -Name Release"',
-                        capture_output=True,
-                        text=True,
-                    )
-                    if dotnet_check.returncode == 0:
-                        # Release values: https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/versions-and-dependencies
-                        # .NET 4.7.2 = 461808
-                        match = re.search(r"Release\s+:\s+(\d+)", dotnet_check.stdout)
-                        if match and int(match.group(1)) >= 461808:
-                            dotnet_framework_ok = True
-                except Exception:
-                    dotnet_framework_ok = False
-
-                # Check if .NET 8 runtime is available
-                dotnet_8_ok = False
-                try:
-                    result = subprocess.run(
-                        ["dotnet", "--list-runtimes"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-                    runtimes = result.stdout
-                    dotnet_8_ok = any("Microsoft.NETCore.App 8." in line for line in runtimes.splitlines())
-                except Exception:
-                    dotnet_8_ok = False
-
-                # Determine which version of pbi-tools to use
-                if pbi_installed and dotnet_framework_ok and os.path.exists(pbi_tools_win_path):
-                    selected_tool = pbi_tools_win_path
-                    tool_type = "Power BI Desktop"
-                elif dotnet_8_ok and os.path.exists(pbi_tools_core_path):
-                    selected_tool = pbi_tools_core_path
-                    tool_type = ".NET Runtime"
-                else:
-                    error_message = "Required environment not found:\n\n"
-                    if not pbi_installed:
-                        error_message += "- Power BI Desktop not installed\n"
-                    if not dotnet_framework_ok:
-                        error_message += "- .NET Framework 4.7.2 or higher not detected\n"
-                    if not dotnet_8_ok:
-                        error_message += "- .NET 8 Runtime not detected\n"
-                    error_message += "\nPlease install the missing software"
-                    messagebox.showerror("Environment Error", error_message)
-                    return
-
-                file_path = os.path.normpath(self.file_path)
-
-                cmd = [selected_tool, "extract", file_path]
-
-                if self.output_path_manually_set:
-                    cmd.extend(["-extractFolder", os.path.normpath(self.output_path)])
-
-                pbi_tools_result = subprocess.run(cmd, capture_output=True, text=True)
-
-            else:  # Linux
-                pbi_tools_linux_path = os.path.join(bin_path, "linux", "pbi-tools.core")
-
-                if os.path.exists(pbi_tools_linux_path):
-                    try:
-                        os.chmod(pbi_tools_linux_path, 0o755)
-
-                        file_path = os.path.normpath(self.file_path)
-
-                        cmd = [pbi_tools_linux_path, "extract", file_path]
-
-                        if self.output_path_manually_set and self.output_path:
-                            output_path = os.path.normpath(self.output_path)
-                            cmd.extend(["-extractFolder", output_path])
-
-                        print(f"Executing command: {cmd}")
-
-                        pbi_tools_result = subprocess.run(cmd, capture_output=True, text=True)
-
-                    except Exception as e:
-                        messagebox.showerror("Linux Error", f"Error running pbi-tools on Linux: {str(e)}")
+            pbi_tools_result = subprocess.run(cmd, capture_output=True, text=True)
 
             if pbi_tools_result.returncode == 0:
                 extraction_dir = ""
@@ -321,7 +266,7 @@ class PBIX_Extractor:
 
                     messagebox.showinfo(
                         "Success",
-                        f"PBIX files extracted using {tool_type} to:\n{extraction_dir}\n\n"
+                        f"PBIX files extracted to:\n{extraction_dir}\n\n"
                         f"Model metadata successfully processed and saved to:\n{output_json_path}",
                         parent=self.root,
                     )
